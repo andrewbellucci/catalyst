@@ -13,6 +13,8 @@ final class CatalystSettingsView: NSView {
     private let searchDisplayPopup = NSPopUpButton()
     private let passwordManagerPopup = NSPopUpButton()
     private let toastDurationPopup = NSPopUpButton()
+    private let customCommandsButton = NSButton(title: "Manage…", target: nil, action: nil)
+    private lazy var customCommandsController = CustomCommandsWindowController()
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -79,6 +81,10 @@ final class CatalystSettingsView: NSView {
         toastDurationPopup.action = #selector(toastDurationChanged)
         toastDurationPopup.translatesAutoresizingMaskIntoConstraints = false
 
+        customCommandsButton.target = self
+        customCommandsButton.action = #selector(showCustomCommands)
+        customCommandsButton.translatesAutoresizingMaskIntoConstraints = false
+
         stack.orientation = .vertical
         stack.alignment = .width
         stack.spacing = 8
@@ -98,6 +104,11 @@ final class CatalystSettingsView: NSView {
             title: "Toast Duration",
             detail: "Choose how long notch notifications remain visible.",
             control: toastDurationPopup
+        ))
+        stack.addArrangedSubview(makeRow(
+            title: "Custom Commands",
+            detail: "Create searchable commands that run executables or open URLs.",
+            control: customCommandsButton
         ))
         stack.addArrangedSubview(makeRow(
             title: "Open at Login",
@@ -153,6 +164,8 @@ final class CatalystSettingsView: NSView {
             titleLabel.topAnchor.constraint(equalTo: row.topAnchor, constant: 9),
             detailLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
             detailLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
+            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: control.leadingAnchor, constant: -12),
+            detailLabel.trailingAnchor.constraint(lessThanOrEqualTo: control.leadingAnchor, constant: -12),
             control.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -16),
             control.centerYAnchor.constraint(equalTo: row.centerYAnchor)
         ])
@@ -214,5 +227,9 @@ final class CatalystSettingsView: NSView {
         else { return }
         CatalystPreferences.shared.toastDuration =
             CatalystToastDuration.allCases[toastDurationPopup.indexOfSelectedItem]
+    }
+
+    @objc private func showCustomCommands() {
+        customCommandsController.show()
     }
 }

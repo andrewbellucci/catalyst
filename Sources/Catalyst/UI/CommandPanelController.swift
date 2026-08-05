@@ -85,6 +85,12 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
             name: .catalystTransparencyDidChange,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(commandsDidChange),
+            name: .catalystCommandsDidChange,
+            object: nil
+        )
         updateResults()
     }
 
@@ -449,6 +455,8 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
         updateResults()
     }
 
+    @objc private func commandsDidChange() { updateResults() }
+
     private func updateChromeTransparency() {
         let opacity = CatalystPreferences.shared.backgroundOpacity
         chrome.fillColor = adaptiveColor(
@@ -545,7 +553,7 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
     }
 
     private func paletteActions(for item: CommandItem) -> [PaletteAction] {
-        if case .lockKeyboard = item.kind {
+        if item.kind.nativeCommandID == .lockKeyboard {
             return keyboardLockDurationActions()
         }
         if case .passwordItem = item.kind {

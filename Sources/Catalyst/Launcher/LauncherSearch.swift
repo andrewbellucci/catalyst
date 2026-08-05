@@ -100,7 +100,9 @@ final class LauncherSearch {
                 })
         }
 
-        commandResults.append(contentsOf: CommandRegistry.builtIns
+        let definitions = CommandRegistry.builtIns + CustomCommandStore.shared.commands
+        commandResults.append(contentsOf: definitions
+            .filter(\.isEnabled)
             .filter { query.isEmpty || ranker.matches($0.item, query: query) }
             .map(\.item))
 

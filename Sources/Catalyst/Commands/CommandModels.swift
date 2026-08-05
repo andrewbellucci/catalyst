@@ -1,6 +1,7 @@
 import AppKit
 
 enum CommandKind {
+    case defined(CatalystCommand)
     case section
     case camera
     case quitFocused
@@ -20,6 +21,27 @@ enum CommandKind {
     case application(URL)
     case passwordItem(PasswordManagerItem)
     case hint
+}
+
+extension CommandKind {
+    var nativeCommandID: NativeCommandID? {
+        if case .defined(let command) = self, case .native(let id) = command.action { return id }
+        return switch self {
+        case .camera: .camera
+        case .quitFocused: .quitFocused
+        case .quitAll: .quitAll
+        case .restartDevice: .restartDevice
+        case .lockDevice: .lockDevice
+        case .lockKeyboard: .lockKeyboard
+        case .emptyTrash: .emptyTrash
+        case .shutDownDevice: .shutDownDevice
+        case .toggleSystemAppearance: .toggleSystemAppearance
+        case .restartCatalyst: .restartCatalyst
+        case .quitCatalyst: .quitCatalyst
+        case .settings: .settings
+        default: nil
+        }
+    }
 }
 
 struct CommandItem {
@@ -57,6 +79,7 @@ struct CommandItem {
 
     var resultType: String {
         switch kind {
+        case .defined: "Command"
         case .application: "Application"
         case .passwordItem: "Login"
         case .calculation: "Result"
@@ -68,6 +91,7 @@ struct CommandItem {
 
     var actionTitle: String {
         switch kind {
+        case .defined(let command): command.actionTitle
         case .application: "Open Application"
         case .passwordItem: "Choose Credential Action"
         case .calculation: "Copy Result"
@@ -87,6 +111,7 @@ struct CommandItem {
 
     var usageIdentifier: String {
         switch kind {
+        case .defined(let command): "command:\(command.id)"
         case .application(let url): "application:\(url.standardizedFileURL.path)"
         case .passwordItem(let item):
             "password-manager:\(item.providerID):\(item.vaultID):\(item.itemID)"

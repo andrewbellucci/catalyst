@@ -1,42 +1,27 @@
 import AppKit
 
-struct CommandDescriptor {
-    let title: String
-    let subtitle: String
-    let symbolName: String
-    let kind: CommandKind
-    var aliases: [String] = []
-
-    var item: CommandItem {
-        CommandItem(
-            title: title,
-            subtitle: subtitle,
-            icon: NSImage(systemSymbolName: symbolName, accessibilityDescription: title),
-            kind: kind,
-            aliases: aliases
-        )
-    }
-}
-
 enum CommandRegistry {
-    static let builtIns: [CommandDescriptor] = [
-        CommandDescriptor(title: "Open Camera", subtitle: "Catalyst", symbolName: "camera.fill", kind: .camera),
-        CommandDescriptor(title: "Quit Focused App", subtitle: "System Actions", symbolName: "xmark.app.fill", kind: .quitFocused),
-        CommandDescriptor(title: "Quit All Apps", subtitle: "System Actions", symbolName: "xmark.circle.fill", kind: .quitAll),
-        CommandDescriptor(title: "Restart Device", subtitle: "System Actions", symbolName: "arrow.clockwise.circle.fill", kind: .restartDevice),
-        CommandDescriptor(title: "Lock Device", subtitle: "System Actions", symbolName: "lock.fill", kind: .lockDevice),
-        CommandDescriptor(title: "Lock Keyboard", subtitle: "Cleaning", symbolName: "keyboard.badge.ellipsis", kind: .lockKeyboard),
-        CommandDescriptor(
-            title: "Empty Trash",
-            subtitle: "Cleaning",
-            symbolName: "trash.fill",
-            kind: .emptyTrash,
-            aliases: ["clear trash", "empty bin", "empty recycling bin"]
-        ),
-        CommandDescriptor(title: "Shut Down Device", subtitle: "System Actions", symbolName: "power.circle.fill", kind: .shutDownDevice),
-        CommandDescriptor(title: "Toggle System Appearance", subtitle: "System Actions", symbolName: "circle.lefthalf.filled", kind: .toggleSystemAppearance),
-        CommandDescriptor(title: "Restart Catalyst", subtitle: "Catalyst", symbolName: "arrow.clockwise", kind: .restartCatalyst),
-        CommandDescriptor(title: "Quit Catalyst", subtitle: "Catalyst", symbolName: "xmark.circle", kind: .quitCatalyst),
-        CommandDescriptor(title: "Settings", subtitle: "Catalyst", symbolName: "gearshape.fill", kind: .settings)
+    static let builtIns: [CatalystCommand] = [
+        builtIn("camera", "Open Camera", "Catalyst", "camera.fill", .camera),
+        builtIn("quit-focused", "Quit Focused App", "System Actions", "xmark.app.fill", .quitFocused),
+        builtIn("quit-all", "Quit All Apps", "System Actions", "xmark.circle.fill", .quitAll),
+        builtIn("restart-device", "Restart Device", "System Actions", "arrow.clockwise.circle.fill", .restartDevice),
+        builtIn("lock-device", "Lock Device", "System Actions", "lock.fill", .lockDevice),
+        builtIn("lock-keyboard", "Lock Keyboard", "Cleaning", "keyboard.badge.ellipsis", .lockKeyboard),
+        builtIn("empty-trash", "Empty Trash", "Cleaning", "trash.fill", .emptyTrash,
+                aliases: ["clear trash", "empty bin", "empty recycling bin"]),
+        builtIn("shutdown-device", "Shut Down Device", "System Actions", "power.circle.fill", .shutDownDevice),
+        builtIn("toggle-system-appearance", "Toggle System Appearance", "System Actions", "circle.lefthalf.filled", .toggleSystemAppearance),
+        builtIn("restart-catalyst", "Restart Catalyst", "Catalyst", "arrow.clockwise", .restartCatalyst),
+        builtIn("quit-catalyst", "Quit Catalyst", "Catalyst", "xmark.circle", .quitCatalyst),
+        builtIn("settings", "Settings", "Catalyst", "gearshape.fill", .settings)
     ]
+
+    private static func builtIn(
+        _ id: String, _ title: String, _ category: String, _ symbol: String,
+        _ native: NativeCommandID, aliases: [String] = []
+    ) -> CatalystCommand {
+        CatalystCommand(id: id, title: title, category: category, symbolName: symbol,
+                        aliases: aliases, action: .native(native), isEditable: false)
+    }
 }
