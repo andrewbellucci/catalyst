@@ -8,6 +8,36 @@ extension Notification.Name {
     static let catalystStatusBarVisibilityDidChange = Notification.Name(
         "CatalystStatusBarVisibilityDidChange"
     )
+    static let catalystPasswordManagerDidChange = Notification.Name(
+        "CatalystPasswordManagerDidChange"
+    )
+}
+
+enum CatalystSearchDisplay: String, CaseIterable {
+    case active
+    case main
+
+    var title: String {
+        switch self {
+        case .active: "Active Display"
+        case .main: "Main Display"
+        }
+    }
+}
+
+enum CatalystToastDuration: String, CaseIterable {
+    case two, three, five, eight
+
+    var seconds: TimeInterval {
+        switch self {
+        case .two: 2
+        case .three: 3
+        case .five: 5
+        case .eight: 8
+        }
+    }
+
+    var title: String { "\(Int(seconds)) Seconds" }
 }
 
 enum CatalystHighlightColor: String, CaseIterable {
@@ -63,6 +93,9 @@ final class CatalystPreferences {
         static let highlightColor = "highlightColor"
         static let backgroundOpacity = "backgroundOpacity"
         static let showsStatusBarIcon = "showsStatusBarIcon"
+        static let searchDisplay = "searchDisplay"
+        static let passwordManagerID = "passwordManagerID"
+        static let toastDuration = "toastDuration"
     }
 
     private let defaults: UserDefaults
@@ -112,5 +145,35 @@ final class CatalystPreferences {
                 object: self
             )
         }
+    }
+
+    var searchDisplay: CatalystSearchDisplay {
+        get {
+            CatalystSearchDisplay(rawValue: defaults.string(forKey: Key.searchDisplay) ?? "")
+                ?? .active
+        }
+        set { defaults.set(newValue.rawValue, forKey: Key.searchDisplay) }
+    }
+
+    var passwordManagerID: String? {
+        get {
+            guard defaults.object(forKey: Key.passwordManagerID) != nil else {
+                return PasswordManagerRegistry.available.first?.id
+            }
+            let value = defaults.string(forKey: Key.passwordManagerID) ?? ""
+            return value.isEmpty ? nil : value
+        }
+        set {
+            defaults.set(newValue ?? "", forKey: Key.passwordManagerID)
+            NotificationCenter.default.post(name: .catalystPasswordManagerDidChange, object: self)
+        }
+    }
+
+    var toastDuration: CatalystToastDuration {
+        get {
+            CatalystToastDuration(rawValue: defaults.string(forKey: Key.toastDuration) ?? "")
+                ?? .three
+        }
+        set { defaults.set(newValue.rawValue, forKey: Key.toastDuration) }
     }
 }

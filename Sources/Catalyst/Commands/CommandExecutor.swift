@@ -69,6 +69,8 @@ final class CommandExecutor {
         case .application(let url):
             applicationLauncher.open(url)
             return .dismiss
+        case .passwordItem:
+            return .none
         }
     }
 

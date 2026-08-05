@@ -56,7 +56,10 @@ final class LauncherResultsView: FadingScrollView, NSTableViewDataSource, NSTabl
         tableView.scrollRowToVisible(items.count - 1)
     }
 
-    func redrawSelection() { tableView.needsDisplay = true }
+    func redrawSelection() {
+        tableView.reloadData()
+        tableView.needsDisplay = true
+    }
 
     private func configure() {
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("result"))

@@ -79,6 +79,30 @@ final class CommandPanelInteractionTests: XCTestCase {
         )
     }
 
+    func testTOTPActionOnlyAppearsForItemsWithTOTP() {
+        _ = NSApplication.shared
+        let controller = CommandPanelController()
+        func item(hasTOTP: Bool) -> CommandItem {
+            CommandItem(
+                title: "Login",
+                subtitle: "user@example.com",
+                icon: nil,
+                kind: .passwordItem(PasswordManagerItem(
+                    providerID: "test",
+                    providerName: "Test",
+                    vaultID: "vault",
+                    itemID: "item",
+                    title: "Login",
+                    email: "user@example.com",
+                    hasTOTP: hasTOTP
+                ))
+            )
+        }
+
+        XCTAssertTrue(controller.actionMenuTitlesForTesting(for: item(hasTOTP: true)).contains("Copy TOTP"))
+        XCTAssertFalse(controller.actionMenuTitlesForTesting(for: item(hasTOTP: false)).contains("Copy TOTP"))
+    }
+
     func testRunningApplicationOffersRestartAction() {
         _ = NSApplication.shared
         let controller = CommandPanelController()
@@ -201,7 +225,7 @@ final class CommandPanelInteractionTests: XCTestCase {
         XCTAssertGreaterThan(wordFont.pointSize, sectionFont.pointSize)
     }
 
-    func testSystemCommandsAndCircularBackButton() throws {
+    func testSystemCommandsAreAvailable() {
         _ = NSApplication.shared
         let controller = CommandPanelController()
         XCTAssertTrue(controller.resultTitlesForTesting.contains("Restart Device"))
@@ -209,12 +233,6 @@ final class CommandPanelInteractionTests: XCTestCase {
         XCTAssertTrue(controller.resultTitlesForTesting.contains("Shut Down Device"))
         XCTAssertTrue(controller.lockMechanismAvailableForTesting)
 
-        let backButton = controller.contentBackButtonForTesting
-        controller.showSettingsForTesting()
-        controller.window?.contentView?.layoutSubtreeIfNeeded()
-        XCTAssertEqual(backButton.title, "")
-        XCTAssertEqual(backButton.frame.width, 42, accuracy: 0.5)
-        XCTAssertEqual(backButton.frame.height, 42, accuracy: 0.5)
         XCTAssertFalse(containsLabel("Quick Actions", in: controller.window?.contentView))
     }
 
@@ -234,18 +252,35 @@ final class CommandPanelInteractionTests: XCTestCase {
         XCTAssertEqual(controller.selectableRowHeightForTesting, 48)
     }
 
+    func testSearchResultIconsEncapsulateCommandsButPreserveApplicationIcons() {
+        _ = NSApplication.shared
+        let cell = LauncherResultCell()
+        cell.configure(with: CommandRegistry.builtIns[0].item)
+        XCTAssertTrue(cell.iconIsEncapsulatedForTesting)
+        XCTAssertEqual(cell.iconTileSizeForTesting, 22)
+        XCTAssertEqual(cell.iconArtworkSizeForTesting, 12)
+
+        cell.configure(with: CommandItem(
+            title: "Finder",
+            subtitle: "",
+            icon: NSImage(size: NSSize(width: 32, height: 32)),
+            kind: .application(URL(fileURLWithPath: "/System/Library/CoreServices/Finder.app"))
+        ))
+        XCTAssertFalse(cell.iconIsEncapsulatedForTesting)
+        XCTAssertEqual(cell.iconArtworkSizeForTesting, 28)
+    }
+
     func testSettingsExposeRequestedOptions() {
         _ = NSApplication.shared
-        let controller = CommandPanelController()
-        controller.setSearchQueryForTesting("settings")
-        controller.showSettingsForTesting()
+        let controller = CatalystSettingsWindowController()
+        controller.window?.contentView?.layoutSubtreeIfNeeded()
 
-        XCTAssertTrue(controller.settingsIsVisibleForTesting)
-        XCTAssertEqual(controller.state, .settings)
         XCTAssertTrue(containsLabel("Show Menu Bar Icon", in: controller.window?.contentView))
-        let searchField = controller.searchFieldForTesting
-        XCTAssertTrue(searchField.isHidden)
-        XCTAssertEqual(searchField.stringValue, "settings")
+        XCTAssertTrue(containsLabel("Search Appears On", in: controller.window?.contentView))
+        XCTAssertTrue(containsLabel("Password Manager", in: controller.window?.contentView))
+        XCTAssertTrue(containsLabel("Toast Duration", in: controller.window?.contentView))
+        XCTAssertEqual(controller.window?.title, "Catalyst Settings")
+        XCTAssertTrue(controller.window?.styleMask.contains(.titled) == true)
         XCTAssertEqual(
             CatalystHighlightColor.allCases.map(\.title),
             ["Blue", "Red", "Orange", "Pink", "Green", "Gray"]
@@ -255,21 +290,6 @@ final class CommandPanelInteractionTests: XCTestCase {
             ["⌥ Space", "⌘ Space", "⌃ Space", "⌥⌘ Space"]
         )
         XCTAssertEqual(CatalystPreferences.shared.backgroundOpacity, 0.72, accuracy: 0.37)
-    }
-
-    func testNestedHeaderBackButtonAndTitleShareACenterline() throws {
-        _ = NSApplication.shared
-        let controller = CommandPanelController()
-        controller.showSettingsForTesting()
-        controller.window?.contentView?.layoutSubtreeIfNeeded()
-
-        let backButton = controller.contentBackButtonForTesting
-        let title = try XCTUnwrap(findLabel("Settings", in: controller.window?.contentView))
-        let titleFrame = title.convert(title.bounds, to: controller.window?.contentView)
-        let backFrame = backButton.convert(backButton.bounds, to: controller.window?.contentView)
-
-        XCTAssertEqual(titleFrame.midY, backFrame.midY, accuracy: 1)
-        XCTAssertEqual(titleFrame.minX - backFrame.maxX, 10, accuracy: 1)
     }
 
     func testCameraPreviewLayerCanBeRecreatedAfterLeavingCamera() {

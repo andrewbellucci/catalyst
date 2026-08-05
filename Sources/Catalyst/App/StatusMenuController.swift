@@ -4,9 +4,11 @@ import AppKit
 final class StatusMenuController: NSObject {
     private let statusItem: NSStatusItem
     private let onOpen: () -> Void
+    private let onSettings: () -> Void
 
-    init(onOpen: @escaping () -> Void) {
+    init(onOpen: @escaping () -> Void, onSettings: @escaping () -> Void) {
         self.onOpen = onOpen
+        self.onSettings = onSettings
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
 
@@ -21,6 +23,12 @@ final class StatusMenuController: NSObject {
             keyEquivalent: ""
         )
         openItem.target = self
+        let settingsItem = menu.addItem(
+            withTitle: "Settings…",
+            action: #selector(openSettings),
+            keyEquivalent: ","
+        )
+        settingsItem.target = self
         menu.addItem(.separator())
         menu.addItem(
             withTitle: "Quit Catalyst",
@@ -37,4 +45,5 @@ final class StatusMenuController: NSObject {
     var isVisible: Bool { statusItem.isVisible }
 
     @objc private func openCatalyst() { onOpen() }
+    @objc private func openSettings() { onSettings() }
 }

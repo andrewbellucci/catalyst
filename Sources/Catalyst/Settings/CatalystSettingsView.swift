@@ -3,7 +3,6 @@ import ServiceManagement
 
 @MainActor
 final class CatalystSettingsView: NSView {
-    let titleLabel = NSTextField(labelWithString: "Settings")
     let stack = NSStackView()
 
     private let openAtLoginSwitch = NSSwitch()
@@ -11,6 +10,9 @@ final class CatalystSettingsView: NSView {
     private let hotKeyPopup = NSPopUpButton()
     private let highlightPopup = NSPopUpButton()
     private let transparencySlider = NSSlider()
+    private let searchDisplayPopup = NSPopUpButton()
+    private let passwordManagerPopup = NSPopUpButton()
+    private let toastDurationPopup = NSPopUpButton()
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -25,13 +27,15 @@ final class CatalystSettingsView: NSView {
         hotKeyPopup.selectItem(withTitle: CatalystPreferences.shared.hotKey.title)
         highlightPopup.selectItem(withTitle: CatalystPreferences.shared.highlightColor.title)
         transparencySlider.doubleValue = CatalystPreferences.shared.backgroundOpacity
+        searchDisplayPopup.selectItem(withTitle: CatalystPreferences.shared.searchDisplay.title)
+        let selectedProvider = PasswordManagerRegistry.available.first {
+            $0.id == CatalystPreferences.shared.passwordManagerID
+        }
+        passwordManagerPopup.selectItem(withTitle: selectedProvider?.name ?? "None")
+        toastDurationPopup.selectItem(withTitle: CatalystPreferences.shared.toastDuration.title)
     }
 
     private func build() {
-        titleLabel.font = .systemFont(ofSize: 22, weight: .regular)
-        titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(titleLabel)
-
         openAtLoginSwitch.target = self
         openAtLoginSwitch.action = #selector(openAtLoginChanged)
         openAtLoginSwitch.translatesAutoresizingMaskIntoConstraints = false
@@ -58,11 +62,43 @@ final class CatalystSettingsView: NSView {
         transparencySlider.widthAnchor.constraint(equalToConstant: 150).isActive = true
         transparencySlider.translatesAutoresizingMaskIntoConstraints = false
 
+        searchDisplayPopup.addItems(withTitles: CatalystSearchDisplay.allCases.map(\.title))
+        searchDisplayPopup.target = self
+        searchDisplayPopup.action = #selector(searchDisplayChanged)
+        searchDisplayPopup.translatesAutoresizingMaskIntoConstraints = false
+
+        passwordManagerPopup.addItems(
+            withTitles: ["None"] + PasswordManagerRegistry.available.map(\.name)
+        )
+        passwordManagerPopup.target = self
+        passwordManagerPopup.action = #selector(passwordManagerChanged)
+        passwordManagerPopup.translatesAutoresizingMaskIntoConstraints = false
+
+        toastDurationPopup.addItems(withTitles: CatalystToastDuration.allCases.map(\.title))
+        toastDurationPopup.target = self
+        toastDurationPopup.action = #selector(toastDurationChanged)
+        toastDurationPopup.translatesAutoresizingMaskIntoConstraints = false
+
         stack.orientation = .vertical
         stack.alignment = .width
         stack.spacing = 8
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
+        stack.addArrangedSubview(makeRow(
+            title: "Search Appears On",
+            detail: "Choose which display shows the Catalyst search window.",
+            control: searchDisplayPopup
+        ))
+        stack.addArrangedSubview(makeRow(
+            title: "Password Manager",
+            detail: "Show login items and copy fields through an installed provider.",
+            control: passwordManagerPopup
+        ))
+        stack.addArrangedSubview(makeRow(
+            title: "Toast Duration",
+            detail: "Choose how long notch notifications remain visible.",
+            control: toastDurationPopup
+        ))
         stack.addArrangedSubview(makeRow(
             title: "Open at Login",
             detail: "Start Catalyst automatically when you sign in.",
@@ -156,5 +192,27 @@ final class CatalystSettingsView: NSView {
 
     @objc private func transparencyChanged() {
         CatalystPreferences.shared.backgroundOpacity = transparencySlider.doubleValue
+    }
+
+    @objc private func searchDisplayChanged() {
+        guard CatalystSearchDisplay.allCases.indices.contains(searchDisplayPopup.indexOfSelectedItem)
+        else { return }
+        CatalystPreferences.shared.searchDisplay =
+            CatalystSearchDisplay.allCases[searchDisplayPopup.indexOfSelectedItem]
+    }
+
+    @objc private func passwordManagerChanged() {
+        let index = passwordManagerPopup.indexOfSelectedItem - 1
+        CatalystPreferences.shared.passwordManagerID =
+            PasswordManagerRegistry.available.indices.contains(index)
+                ? PasswordManagerRegistry.available[index].id
+                : nil
+    }
+
+    @objc private func toastDurationChanged() {
+        guard CatalystToastDuration.allCases.indices.contains(toastDurationPopup.indexOfSelectedItem)
+        else { return }
+        CatalystPreferences.shared.toastDuration =
+            CatalystToastDuration.allCases[toastDurationPopup.indexOfSelectedItem]
     }
 }

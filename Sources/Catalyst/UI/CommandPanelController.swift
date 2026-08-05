@@ -5,6 +5,8 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
     private static let shadowInset = LauncherShadowView.requiredClearance
 
     var onDismiss: (() -> Void)?
+    var onShowSettings: (() -> Void)?
+    var onShowToast: ((NotchToast, NSScreen?) -> Void)?
     var previousApplication: (() -> NSRunningApplication?)?
 
     private let searchField = SearchTextField()
@@ -14,7 +16,6 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
     private let scrollView = LauncherResultsView()
     private let detailLabel = NSTextField(wrappingLabelWithString: "")
     private let cameraView = CameraPreviewView()
-    private let settingsView = CatalystSettingsView()
     private let contentBackButton = CircularBackButton()
     private let actionCapsule = AdaptiveBackgroundView()
     private let actionsPalette = ActionPaletteView()
@@ -29,6 +30,9 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
     private var contentBackWidth: NSLayoutConstraint?
     private var contentBackHeight: NSLayoutConstraint?
     private var isPresentingModalDialog = false
+    private var totpPreviewTimer: Timer?
+    private var totpPreviewCode = ""
+    private var totpPreviewExpiresAt: Date?
     private(set) var state: LauncherState = .results
     private lazy var contentBackSurface = liquidGlassSurface(
         containing: contentBackButton,
@@ -71,6 +75,12 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
         )
         NotificationCenter.default.addObserver(
             self,
+            selector: #selector(passwordManagerPreferenceDidChange),
+            name: .catalystPasswordManagerDidChange,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
             selector: #selector(transparencyPreferenceDidChange),
             name: .catalystTransparencyDidChange,
             object: nil
@@ -93,7 +103,14 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
 
     func show() {
         guard let window else { return }
-        if let screen = NSScreen.main {
+        let screens = NSScreen.screens
+        let screenIndex = LauncherScreenSelector.targetIndex(
+            screenFrames: screens.map(\.frame),
+            mouseLocation: NSEvent.mouseLocation,
+            preference: CatalystPreferences.shared.searchDisplay
+        )
+        if let screenIndex, screens.indices.contains(screenIndex) {
+            let screen = screens[screenIndex]
             let frame = window.frame
             window.setFrameOrigin(NSPoint(
                 x: screen.visibleFrame.midX - frame.width / 2,
@@ -140,10 +157,6 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
         updateResults()
         window?.contentView?.layoutSubtreeIfNeeded()
         scrollView.scrollToLastItem()
-    }
-
-    func configureSettingsPreview() {
-        showSettings()
     }
 
     private func buildUI() {
@@ -233,10 +246,6 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
         cameraView.translatesAutoresizingMaskIntoConstraints = false
         chrome.addSubview(cameraView)
 
-        settingsView.isHidden = true
-        settingsView.translatesAutoresizingMaskIntoConstraints = false
-        chrome.addSubview(settingsView)
-
         contentBackButton.title = ""
         contentBackButton.image = NSImage(
             systemSymbolName: "chevron.left",
@@ -262,7 +271,7 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
         let menuButton = AdaptiveBackgroundButton(
             image: NSImage(systemSymbolName: "line.3.horizontal", accessibilityDescription: "Menu")!,
             target: self,
-            action: #selector(showSettings)
+            action: #selector(openSettingsWindow)
         )
         menuButton.isBordered = false
         menuButton.contentTintColor = .secondaryLabelColor
@@ -357,19 +366,10 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
             cameraView.trailingAnchor.constraint(equalTo: chrome.trailingAnchor, constant: -4),
             cameraView.topAnchor.constraint(equalTo: chrome.topAnchor, constant: 4),
             cameraView.bottomAnchor.constraint(equalTo: chrome.bottomAnchor, constant: -4),
-            settingsView.leadingAnchor.constraint(equalTo: chrome.leadingAnchor, constant: 22),
-            settingsView.trailingAnchor.constraint(equalTo: chrome.trailingAnchor, constant: -22),
-            settingsView.topAnchor.constraint(equalTo: chrome.topAnchor, constant: 16),
-            settingsView.bottomAnchor.constraint(equalTo: chrome.bottomAnchor, constant: -52),
             contentBackSurface.leadingAnchor.constraint(equalTo: chrome.leadingAnchor, constant: 20),
             contentBackSurface.topAnchor.constraint(equalTo: chrome.topAnchor, constant: 16),
             contentBackWidth!,
             contentBackHeight!,
-            settingsView.titleLabel.leadingAnchor.constraint(equalTo: contentBackSurface.trailingAnchor, constant: 12),
-            settingsView.titleLabel.centerYAnchor.constraint(equalTo: contentBackSurface.centerYAnchor),
-            settingsView.stack.leadingAnchor.constraint(equalTo: settingsView.leadingAnchor),
-            settingsView.stack.trailingAnchor.constraint(equalTo: settingsView.trailingAnchor),
-            settingsView.stack.topAnchor.constraint(equalTo: contentBackSurface.bottomAnchor, constant: 14),
             menuButtonSurface.leadingAnchor.constraint(equalTo: chrome.leadingAnchor, constant: 8),
             menuButtonSurface.centerYAnchor.constraint(equalTo: chrome.bottomAnchor, constant: -25),
             menuButtonSurface.widthAnchor.constraint(equalToConstant: 36),
@@ -399,7 +399,6 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
         setMainSearchVisible(true)
         scrollView.allowsHoverScroller = true
         cameraView.isHidden = true
-        settingsView.isHidden = true
         setContentBackHidden(true)
         detailLabel.isHidden = true
         scrollView.isHidden = false
@@ -424,7 +423,6 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
         setMainSearchVisible(false)
         scrollView.allowsHoverScroller = false
         scrollView.isHidden = true
-        settingsView.isHidden = true
         detailLabel.isHidden = true
         cameraView.isHidden = false
         setContentBackHidden(false)
@@ -434,19 +432,9 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
         }
     }
 
-    @objc private func showSettings() {
-        state = .settings
-        hideActionsPalette()
-        setMainSearchVisible(false)
-        scrollView.allowsHoverScroller = false
-        settingsView.synchronize()
-        scrollView.isHidden = true
-        cameraView.stop()
-        cameraView.isHidden = true
-        detailLabel.isHidden = true
-        settingsView.isHidden = false
-        setContentBackHidden(false)
-        actionTitleLabel.stringValue = "Back to Results"
+    @objc private func openSettingsWindow() {
+        onDismiss?()
+        onShowSettings?()
     }
 
     @objc private func highlightPreferenceDidChange() {
@@ -455,6 +443,10 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
 
     @objc private func transparencyPreferenceDidChange() {
         updateChromeTransparency()
+    }
+
+    @objc private func passwordManagerPreferenceDidChange() {
+        updateResults()
     }
 
     private func updateChromeTransparency() {
@@ -544,11 +536,43 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
         actionsPaletteHeight?.constant = actionsPalette.preferredHeight(forActionCount: actions.count)
         actionsPalette.isHidden = false
         actionsPalette.focusSearch()
+        if case .passwordItem(let passwordItem) = item.kind {
+            Task { await launcherSearch.preparePasswordManagerValues(in: passwordItem) }
+            if passwordItem.hasTOTP {
+                startTOTPPreview(for: passwordItem)
+            }
+        }
     }
 
     private func paletteActions(for item: CommandItem) -> [PaletteAction] {
         if case .lockKeyboard = item.kind {
             return keyboardLockDurationActions()
+        }
+        if case .passwordItem = item.kind {
+            var actions = [
+                PaletteAction(
+                    title: "Copy Username",
+                    symbolName: "person.crop.circle",
+                    shortcut: "",
+                    selector: #selector(copyPasswordManagerUsername)
+                ),
+                PaletteAction(
+                    title: "Copy Password",
+                    symbolName: "key.fill",
+                    shortcut: "",
+                    selector: #selector(copyPasswordManagerPassword)
+                )
+            ]
+            if case .passwordItem(let passwordItem) = item.kind, passwordItem.hasTOTP {
+                actions.append(PaletteAction(
+                    title: "Copy TOTP",
+                    symbolName: "number.circle",
+                    shortcut: "",
+                    selector: #selector(copyPasswordManagerTOTP),
+                    detail: "Loading…"
+                ))
+            }
+            return actions
         }
         var actions: [PaletteAction] = []
         if !item.actionTitle.isEmpty {
@@ -717,10 +741,52 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
     }
 
     private func hideActionsPalette() {
+        stopTOTPPreview()
         actionsPalette.isHidden = true
         setMainSearchVisible(true)
         scrollView.allowsHoverScroller = true
         window?.makeFirstResponder(searchField)
+    }
+
+    private func startTOTPPreview(for item: PasswordManagerItem) {
+        stopTOTPPreview()
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                totpPreviewCode = try await launcherSearch.passwordManagerValue(for: .totp, in: item)
+                totpPreviewExpiresAt = ProtonPassProvider.nextTOTPBoundary(after: Date())
+                updateTOTPPreview()
+                totpPreviewTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) {
+                    [weak self] _ in Task { @MainActor in self?.updateTOTPPreview() }
+                }
+            } catch {
+                actionsPalette.updateDetail("Unavailable", for: #selector(copyPasswordManagerTOTP))
+            }
+        }
+    }
+
+    private func updateTOTPPreview() {
+        guard !actionsPalette.isHidden, let expiresAt = totpPreviewExpiresAt else { return }
+        let remaining = max(0, Int(ceil(expiresAt.timeIntervalSinceNow)))
+        if remaining == 0,
+           let selectedItem,
+           case .passwordItem(let item) = selectedItem.kind {
+            startTOTPPreview(for: item)
+            return
+        }
+        actionsPalette.updateDetail(
+            totpPreviewCode,
+            countdownSeconds: remaining,
+            countdownProgress: Double(remaining) / 30,
+            for: #selector(copyPasswordManagerTOTP)
+        )
+    }
+
+    private func stopTOTPPreview() {
+        totpPreviewTimer?.invalidate()
+        totpPreviewTimer = nil
+        totpPreviewCode = ""
+        totpPreviewExpiresAt = nil
     }
 
     @objc private func runSelectedAction() {
@@ -826,9 +892,59 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
         hideActionsPalette()
     }
 
+    @objc private func copyPasswordManagerUsername() {
+        copyPasswordManagerField(.username)
+    }
+
+    @objc private func copyPasswordManagerPassword() {
+        copyPasswordManagerField(.password)
+    }
+
+    @objc private func copyPasswordManagerTOTP() {
+        copyPasswordManagerField(.totp)
+    }
+
+    private func copyPasswordManagerField(_ field: PasswordManagerField) {
+        guard let selectedItem, case .passwordItem(let item) = selectedItem.kind else { return }
+        if field == .totp, !totpPreviewCode.isEmpty {
+            finishPasswordManagerCopy(totpPreviewCode, field: field)
+            return
+        }
+        Task { @MainActor in
+            do {
+                let value = try await launcherSearch.passwordManagerValue(for: field, in: item)
+                finishPasswordManagerCopy(value, field: field)
+            } catch {
+                isPresentingModalDialog = true
+                let alert = NSAlert(error: error)
+                alert.messageText = "Couldn’t Copy \(field.title)"
+                alert.runModal()
+                isPresentingModalDialog = false
+                window?.makeKeyAndOrderFront(nil)
+                actionsPalette.focusSearch()
+            }
+        }
+    }
+
+    private func finishPasswordManagerCopy(_ value: String, field: PasswordManagerField) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(value, forType: .string)
+        let screen = window?.screen
+        onShowToast?(
+            NotchToast(message: "\(field.title) copied", indicatorColor: .systemGreen),
+            screen
+        )
+        hideActionsPalette()
+        onDismiss?()
+    }
+
     func selectedActionMenuTitlesForTesting() -> [String] {
         guard let selectedItem else { return [] }
         return paletteActions(for: selectedItem).map(\.title)
+    }
+
+    func actionMenuTitlesForTesting(for item: CommandItem) -> [String] {
+        paletteActions(for: item).map(\.title)
     }
 
     func configureActionsPreview() {
@@ -907,14 +1023,6 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
 
     var selectableRowHeightForTesting: CGFloat { 48 }
 
-    var settingsIsVisibleForTesting: Bool {
-        !settingsView.isHidden && scrollView.isHidden && !contentBackSurface.isHidden
-    }
-
-    func showSettingsForTesting() {
-        showSettings()
-    }
-
     func setSearchQueryForTesting(_ query: String) {
         searchField.stringValue = query
         controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
@@ -922,6 +1030,10 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
 
     private func execute(_ item: CommandItem) {
         launcherSearch.recordUsage(of: item)
+        if case .passwordItem = item.kind {
+            showActionsMenu()
+            return
+        }
         switch commandExecutor.execute(item.kind, previousApplication: previousApplication?()) {
         case .none:
             break
@@ -932,7 +1044,7 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
         case .showKeyboardLockDurations:
             showKeyboardLockDurations()
         case .showSettings:
-            showSettings()
+            openSettingsWindow()
         case .showDefinition(let term):
             showDefinition(term)
         }

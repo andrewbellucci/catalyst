@@ -6,6 +6,46 @@ struct PaletteAction {
     let shortcut: String
     let selector: Selector
     var isDestructive = false
+    var detail = ""
+    var countdownSeconds: Int?
+    var countdownProgress: Double?
+}
+
+private final class ActionCountdownView: NSView {
+    var seconds = 0
+    var progress = 0.0
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        let center = CGPoint(x: bounds.midX, y: bounds.midY)
+        let radius = min(bounds.width, bounds.height) / 2 - 1.5
+        let track = NSBezierPath(ovalIn: bounds.insetBy(dx: 1.5, dy: 1.5))
+        NSColor.secondaryLabelColor.withAlphaComponent(0.22).setStroke()
+        track.lineWidth = 2
+        track.stroke()
+
+        let ring = NSBezierPath()
+        ring.appendArc(
+            withCenter: center,
+            radius: radius,
+            startAngle: 90,
+            endAngle: 90 - 360 * progress,
+            clockwise: true
+        )
+        CatalystPreferences.shared.highlightColor.color.setStroke()
+        ring.lineWidth = 2
+        ring.lineCapStyle = .round
+        ring.stroke()
+
+        let text = "\(seconds)" as NSString
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 8, weight: .semibold),
+            .foregroundColor: NSColor.secondaryLabelColor
+        ]
+        let size = text.size(withAttributes: attributes)
+        text.draw(at: CGPoint(x: center.x - size.width / 2, y: center.y - size.height / 2),
+                  withAttributes: attributes)
+    }
 }
 
 private final class FlippedActionStackView: NSStackView {
@@ -118,6 +158,25 @@ final class ActionPaletteView: NSVisualEffectView, NSTextFieldDelegate {
         filteredActions = actions
         actionTarget = target
         selectedIndex = 0
+        renderRows()
+    }
+
+    func updateDetail(
+        _ detail: String,
+        countdownSeconds: Int? = nil,
+        countdownProgress: Double? = nil,
+        for selector: Selector
+    ) {
+        for index in allActions.indices where allActions[index].selector == selector {
+            allActions[index].detail = detail
+            allActions[index].countdownSeconds = countdownSeconds
+            allActions[index].countdownProgress = countdownProgress
+        }
+        for index in filteredActions.indices where filteredActions[index].selector == selector {
+            filteredActions[index].detail = detail
+            filteredActions[index].countdownSeconds = countdownSeconds
+            filteredActions[index].countdownProgress = countdownProgress
+        }
         renderRows()
     }
 
@@ -258,11 +317,31 @@ final class ActionPaletteView: NSVisualEffectView, NSTextFieldDelegate {
         shortcut.translatesAutoresizingMaskIntoConstraints = false
         row.addSubview(shortcut)
 
+        let detail = NSTextField(labelWithString: action.detail)
+        detail.font = .monospacedDigitSystemFont(ofSize: 13, weight: .medium)
+        detail.textColor = .secondaryLabelColor
+        detail.alignment = .right
+        detail.translatesAutoresizingMaskIntoConstraints = false
+        row.addSubview(detail)
+
+        let countdown = ActionCountdownView()
+        countdown.seconds = action.countdownSeconds ?? 0
+        countdown.progress = action.countdownProgress ?? 0
+        countdown.isHidden = action.countdownSeconds == nil
+        countdown.translatesAutoresizingMaskIntoConstraints = false
+        row.addSubview(countdown)
+
         NSLayoutConstraint.activate([
             row.heightAnchor.constraint(equalToConstant: 42),
             button.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 12),
-            button.trailingAnchor.constraint(lessThanOrEqualTo: shortcut.leadingAnchor, constant: -8),
+            button.trailingAnchor.constraint(lessThanOrEqualTo: detail.leadingAnchor, constant: -8),
             button.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+            detail.trailingAnchor.constraint(equalTo: countdown.leadingAnchor, constant: -8),
+            detail.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+            countdown.trailingAnchor.constraint(equalTo: shortcut.leadingAnchor, constant: -8),
+            countdown.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+            countdown.widthAnchor.constraint(equalToConstant: action.countdownSeconds == nil ? 0 : 24),
+            countdown.heightAnchor.constraint(equalToConstant: 24),
             shortcut.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -10),
             shortcut.centerYAnchor.constraint(equalTo: row.centerYAnchor)
         ])

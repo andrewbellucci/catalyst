@@ -29,6 +29,13 @@ final class LauncherSearchTests: XCTestCase {
         XCTAssertNotNil(result)
     }
 
+    func testPasswordManagerQueriesRequirePassPrefix() {
+        XCTAssertNil(LauncherSearch.passwordManagerQuery(from: "github"))
+        XCTAssertNil(LauncherSearch.passwordManagerQuery(from: "password"))
+        XCTAssertEqual(LauncherSearch.passwordManagerQuery(from: "pass"), "")
+        XCTAssertEqual(LauncherSearch.passwordManagerQuery(from: "PASS GitHub"), "GitHub")
+    }
+
     func testAcceptedQuitRequestImmediatelyClearsRunningStatus() throws {
         let search = LauncherSearch(settingsPanes: [])
         search.prepare()

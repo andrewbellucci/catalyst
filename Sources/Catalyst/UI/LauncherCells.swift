@@ -140,20 +140,29 @@ final class LauncherSectionCell: NSTableCellView {
 
 final class LauncherResultCell: NSTableCellView {
     static let reuseIdentifier = NSUserInterfaceItemIdentifier("launcher-result")
+    private let iconContainer = NSView()
+    private let iconTile = NSView()
     private let iconView = NSImageView()
     private let runningIndicator = NSView()
     private let titleLabel = NSTextField(labelWithString: "")
     private let subtitleLabel = NSTextField(labelWithString: "")
     private let resultTypeLabel = NSTextField(labelWithString: "")
+    private var iconWidth: NSLayoutConstraint!
+    private var iconHeight: NSLayoutConstraint!
+    private var iconTileWidth: NSLayoutConstraint!
+    private var iconTileHeight: NSLayoutConstraint!
+    private var iconIsEncapsulated = false
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         identifier = Self.reuseIdentifier
 
+        iconContainer.wantsLayer = true
+        iconTile.wantsLayer = true
+        iconTile.layer?.cornerRadius = 6
+        iconTile.layer?.masksToBounds = true
         iconView.imageScaling = .scaleProportionallyUpOrDown
         iconView.wantsLayer = true
-        iconView.layer?.cornerRadius = 8
-        iconView.layer?.masksToBounds = true
         runningIndicator.wantsLayer = true
         runningIndicator.layer?.backgroundColor = NSColor.secondaryLabelColor.cgColor
         runningIndicator.layer?.cornerRadius = 1.5
@@ -165,26 +174,42 @@ final class LauncherResultCell: NSTableCellView {
         resultTypeLabel.textColor = .secondaryLabelColor
         resultTypeLabel.alignment = .right
 
-        for view in [iconView, runningIndicator, titleLabel, subtitleLabel, resultTypeLabel] {
+        for view in [iconContainer, runningIndicator, titleLabel, subtitleLabel, resultTypeLabel] {
             view.translatesAutoresizingMaskIntoConstraints = false
             addSubview(view)
         }
+        iconTile.translatesAutoresizingMaskIntoConstraints = false
+        iconContainer.addSubview(iconTile)
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        iconContainer.addSubview(iconView)
+        iconWidth = iconView.widthAnchor.constraint(equalToConstant: 28)
+        iconHeight = iconView.heightAnchor.constraint(equalToConstant: 28)
+        iconTileWidth = iconTile.widthAnchor.constraint(equalToConstant: 22)
+        iconTileHeight = iconTile.heightAnchor.constraint(equalToConstant: 22)
         NSLayoutConstraint.activate([
-            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
-            iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
-            iconView.widthAnchor.constraint(equalToConstant: 28),
-            iconView.heightAnchor.constraint(equalToConstant: 28),
-            runningIndicator.centerXAnchor.constraint(equalTo: iconView.centerXAnchor),
+            iconContainer.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+            iconContainer.centerYAnchor.constraint(equalTo: centerYAnchor),
+            iconContainer.widthAnchor.constraint(equalToConstant: 28),
+            iconContainer.heightAnchor.constraint(equalToConstant: 28),
+            iconTile.centerXAnchor.constraint(equalTo: iconContainer.centerXAnchor),
+            iconTile.centerYAnchor.constraint(equalTo: iconContainer.centerYAnchor),
+            iconTileWidth,
+            iconTileHeight,
+            iconView.centerXAnchor.constraint(equalTo: iconContainer.centerXAnchor),
+            iconView.centerYAnchor.constraint(equalTo: iconContainer.centerYAnchor),
+            iconWidth,
+            iconHeight,
+            runningIndicator.centerXAnchor.constraint(equalTo: iconContainer.centerXAnchor),
             runningIndicator.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -6),
             runningIndicator.widthAnchor.constraint(equalToConstant: 3),
             runningIndicator.heightAnchor.constraint(equalToConstant: 3),
-            titleLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 12),
-            titleLabel.centerYAnchor.constraint(equalTo: iconView.centerYAnchor),
+            titleLabel.leadingAnchor.constraint(equalTo: iconContainer.trailingAnchor, constant: 12),
+            titleLabel.centerYAnchor.constraint(equalTo: iconContainer.centerYAnchor),
             subtitleLabel.leadingAnchor.constraint(equalTo: titleLabel.trailingAnchor, constant: 14),
-            subtitleLabel.centerYAnchor.constraint(equalTo: iconView.centerYAnchor),
+            subtitleLabel.centerYAnchor.constraint(equalTo: iconContainer.centerYAnchor),
             subtitleLabel.trailingAnchor.constraint(lessThanOrEqualTo: resultTypeLabel.leadingAnchor, constant: -12),
             resultTypeLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
-            resultTypeLabel.centerYAnchor.constraint(equalTo: iconView.centerYAnchor),
+            resultTypeLabel.centerYAnchor.constraint(equalTo: iconContainer.centerYAnchor),
             resultTypeLabel.widthAnchor.constraint(equalToConstant: 110)
         ])
     }
@@ -193,10 +218,35 @@ final class LauncherResultCell: NSTableCellView {
 
     func configure(with item: CommandItem) {
         iconView.image = item.icon
+        if case .application = item.kind {
+            iconIsEncapsulated = false
+            iconTile.isHidden = true
+            iconView.layer?.backgroundColor = NSColor.clear.cgColor
+            iconView.contentTintColor = nil
+            iconWidth.constant = 28
+            iconHeight.constant = 28
+        } else {
+            iconIsEncapsulated = true
+            iconTile.isHidden = false
+            iconTile.layer?.backgroundColor = CatalystPreferences.shared.highlightColor.color
+                .withAlphaComponent(0.88).cgColor
+            iconView.layer?.backgroundColor = NSColor.clear.cgColor
+            iconView.contentTintColor = .white
+            iconWidth.constant = 12
+            iconHeight.constant = 12
+        }
         runningIndicator.isHidden = !item.isRunning
         titleLabel.stringValue = item.title
         subtitleLabel.stringValue = item.subtitle
         subtitleLabel.isHidden = item.subtitle.isEmpty
         resultTypeLabel.stringValue = item.resultType
     }
+
+    var iconIsEncapsulatedForTesting: Bool {
+        iconIsEncapsulated
+    }
+
+    var iconArtworkSizeForTesting: CGFloat { iconWidth.constant }
+
+    var iconTileSizeForTesting: CGFloat { iconTileWidth.constant }
 }

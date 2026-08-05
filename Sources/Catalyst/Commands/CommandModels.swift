@@ -18,6 +18,7 @@ enum CommandKind {
     case dictionary(String)
     case calculation(String)
     case application(URL)
+    case passwordItem(PasswordManagerItem)
     case hint
 }
 
@@ -57,6 +58,7 @@ struct CommandItem {
     var resultType: String {
         switch kind {
         case .application: "Application"
+        case .passwordItem: "Login"
         case .calculation: "Result"
         case .hint: ""
         case .section: ""
@@ -67,6 +69,7 @@ struct CommandItem {
     var actionTitle: String {
         switch kind {
         case .application: "Open Application"
+        case .passwordItem: "Choose Credential Action"
         case .calculation: "Copy Result"
         case .dictionary: "Show Definition"
         case .camera: "Open Camera"
@@ -85,6 +88,8 @@ struct CommandItem {
     var usageIdentifier: String {
         switch kind {
         case .application(let url): "application:\(url.standardizedFileURL.path)"
+        case .passwordItem(let item):
+            "password-manager:\(item.providerID):\(item.vaultID):\(item.itemID)"
         case .camera: "command:camera"
         case .quitFocused: "command:quit-focused"
         case .quitAll: "command:quit-all"

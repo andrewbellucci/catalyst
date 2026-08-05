@@ -8,6 +8,7 @@ final class LauncherSearch {
     private let usageHistory: UsageHistory
     private let aliases: ApplicationAliasStore
     private let runningApplications: RunningApplicationsMonitor
+    private let passwordManagers: PasswordManagerCatalog
     private lazy var ranker = ResultRanker(usageHistory: usageHistory)
     var onRunningApplicationsChange: (() -> Void)?
 
@@ -17,7 +18,8 @@ final class LauncherSearch {
         settingsPanes: [SystemSettingsPane] = SystemSettingsCatalog().panes(),
         usageHistory: UsageHistory = UsageHistory(),
         aliases: ApplicationAliasStore = ApplicationAliasStore(),
-        runningApplications: RunningApplicationsMonitor = RunningApplicationsMonitor()
+        runningApplications: RunningApplicationsMonitor = RunningApplicationsMonitor(),
+        passwordManagers: PasswordManagerCatalog = PasswordManagerCatalog()
     ) {
         self.catalog = catalog
         self.calculator = calculator
@@ -25,6 +27,7 @@ final class LauncherSearch {
         self.usageHistory = usageHistory
         self.aliases = aliases
         self.runningApplications = runningApplications
+        self.passwordManagers = passwordManagers
     }
 
     func prepare() {
@@ -32,7 +35,9 @@ final class LauncherSearch {
         runningApplications.onChange = { [weak self] in
             self?.onRunningApplicationsChange?()
         }
+        passwordManagers.onChange = { [weak self] in self?.onRunningApplicationsChange?() }
         runningApplications.start()
+        passwordManagers.reload()
     }
 
     func reloadApplications() {
@@ -76,6 +81,24 @@ final class LauncherSearch {
         let query = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         var applicationResults: [CommandItem] = []
         var commandResults = dynamicCommands(for: query)
+
+        if let passwordQuery = Self.passwordManagerQuery(from: query) {
+            commandResults.append(contentsOf: passwordManagers.selectedItems
+                .filter { passwordQuery.isEmpty || $0.title.localizedCaseInsensitiveContains(passwordQuery) }
+                .map { item in
+                    CommandItem(
+                        title: item.title,
+                        subtitle: item.email.isEmpty ? item.providerName : item.email,
+                        icon: NSImage(
+                            systemSymbolName: "key.fill",
+                            accessibilityDescription: item.providerName
+                        ),
+                        kind: .passwordItem(item),
+                        aliases: [item.providerName, "pass \(item.title)"]
+                            + (item.email.isEmpty ? [] : ["pass \(item.email)"])
+                    )
+                })
+        }
 
         commandResults.append(contentsOf: CommandRegistry.builtIns
             .filter { query.isEmpty || ranker.matches($0.item, query: query) }
@@ -147,6 +170,14 @@ final class LauncherSearch {
         return Array(results.prefix(20))
     }
 
+    static func passwordManagerQuery(from query: String) -> String? {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.caseInsensitiveCompare("pass") == .orderedSame
+                || trimmed.lowercased().hasPrefix("pass ")
+        else { return nil }
+        return String(trimmed.dropFirst(4)).trimmingCharacters(in: .whitespaces)
+    }
+
     private func dynamicCommands(for query: String) -> [CommandItem] {
         var commands: [CommandItem] = []
         if query.lowercased().hasPrefix("define ") {
@@ -175,5 +206,16 @@ final class LauncherSearch {
             bundleIdentifier: application.bundleIdentifier,
             url: application.url
         )
+    }
+
+    func passwordManagerValue(
+        for field: PasswordManagerField,
+        in item: PasswordManagerItem
+    ) async throws -> String {
+        try await passwordManagers.value(for: field, in: item)
+    }
+
+    func preparePasswordManagerValues(in item: PasswordManagerItem) async {
+        await passwordManagers.prepareValues(in: item)
     }
 }

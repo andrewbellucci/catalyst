@@ -5,16 +5,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panelController: CommandPanelController!
     private var statusMenu: StatusMenuController!
     private var globalHotKey: GlobalHotKey!
+    private var settingsWindowController: CatalystSettingsWindowController!
+    private var toastController: NotchToastController!
     private var previousApp: NSRunningApplication?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         panelController = CommandPanelController()
+        toastController = NotchToastController()
         panelController.onDismiss = { [weak self] in self?.hidePanel() }
+        panelController.onShowSettings = { [weak self] in self?.showSettings() }
+        panelController.onShowToast = { [weak self] toast, screen in
+            self?.toastController.show(toast, on: screen)
+        }
         panelController.previousApplication = { [weak self] in self?.previousApp }
 
         observeActiveApplications()
-        statusMenu = StatusMenuController { [weak self] in self?.togglePanel() }
+        settingsWindowController = CatalystSettingsWindowController()
+        statusMenu = StatusMenuController(
+            onOpen: { [weak self] in self?.togglePanel() },
+            onSettings: { [weak self] in self?.showSettings() }
+        )
         statusMenu.setVisible(CatalystPreferences.shared.showsStatusBarIcon)
         globalHotKey = GlobalHotKey { [weak self] in self?.togglePanel() }
         registerHotKey()
@@ -98,9 +109,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if ProcessInfo.processInfo.environment["CATALYST_PREVIEW_CAMERA"] == "1" {
                     self.panelController.configureCameraPreview()
                 }
-                if ProcessInfo.processInfo.environment["CATALYST_PREVIEW_SETTINGS"] == "1" {
-                    self.panelController.configureSettingsPreview()
-                }
                 if let query = ProcessInfo.processInfo.environment["CATALYST_PREVIEW_QUERY"] {
                     self.panelController.configureQueryPreview(query)
                 }
@@ -168,5 +176,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func hidePanel() {
         panelController.dismiss()
+    }
+
+    private func showSettings() {
+        hidePanel()
+        settingsWindowController.show()
     }
 }
