@@ -12,7 +12,10 @@ final class CustomCommandsWindowController: NSWindowController, NSTableViewDataS
     private let argumentsField = NSTextField()
     private let directoryField = NSTextField()
     private let shellSwitch = NSSwitch()
+    private let editor = NSView()
+    private var sidebarWidth: NSLayoutConstraint!
     private var commands: [CatalystCommand] = []
+    private var editingIndex: Int?
     private var selectedIndex: Int? { table.selectedRow >= 0 ? table.selectedRow : nil }
 
     init() {
@@ -37,6 +40,22 @@ final class CustomCommandsWindowController: NSWindowController, NSTableViewDataS
         window?.makeKeyAndOrderFront(nil)
     }
 
+    func show(editingCommandID id: String) {
+        reload()
+        guard let index = commands.firstIndex(where: { $0.id == id }) else {
+            show()
+            return
+        }
+        table.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+        editingIndex = index
+        loadSelection()
+        showEditor()
+        NSApp.activate(ignoringOtherApps: true)
+        showWindow(nil)
+        window?.makeKeyAndOrderFront(nil)
+        window?.makeFirstResponder(titleField)
+    }
+
     func numberOfRows(in tableView: NSTableView) -> Int { commands.count }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
@@ -45,7 +64,7 @@ final class CustomCommandsWindowController: NSWindowController, NSTableViewDataS
         return label
     }
 
-    func tableViewSelectionDidChange(_ notification: Notification) { loadSelection() }
+    func tableViewSelectionDidChange(_ notification: Notification) {}
 
     private func build() {
         guard let content = window?.contentView else { return }
@@ -56,10 +75,9 @@ final class CustomCommandsWindowController: NSWindowController, NSTableViewDataS
         content.addSubview(split)
 
         let sidebar = NSView()
-        let editor = NSView()
         split.addArrangedSubview(sidebar)
         split.addArrangedSubview(editor)
-        sidebar.widthAnchor.constraint(equalToConstant: 220).isActive = true
+        sidebarWidth = sidebar.widthAnchor.constraint(equalToConstant: 220)
 
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("commands"))
         column.title = "Commands"
@@ -74,9 +92,10 @@ final class CustomCommandsWindowController: NSWindowController, NSTableViewDataS
         scroll.translatesAutoresizingMaskIntoConstraints = false
         sidebar.addSubview(scroll)
 
-        let add = NSButton(title: "+", target: self, action: #selector(addCommand))
-        let remove = NSButton(title: "−", target: self, action: #selector(removeCommand))
-        for button in [add, remove] { button.translatesAutoresizingMaskIntoConstraints = false; sidebar.addSubview(button) }
+        let add = NSButton(title: "Add", target: self, action: #selector(addCommand))
+        let edit = NSButton(title: "Edit", target: self, action: #selector(editCommand))
+        let remove = NSButton(title: "Remove", target: self, action: #selector(removeCommand))
+        for button in [add, edit, remove] { button.translatesAutoresizingMaskIntoConstraints = false; sidebar.addSubview(button) }
 
         let form = NSStackView()
         form.orientation = .vertical
@@ -106,7 +125,8 @@ final class CustomCommandsWindowController: NSWindowController, NSTableViewDataS
         let save = NSButton(title: "Save", target: self, action: #selector(saveCommand))
         save.keyEquivalent = "\r"
         let test = NSButton(title: "Test", target: self, action: #selector(testCommand))
-        let buttons = NSStackView(views: [test, save])
+        let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancelEditing))
+        let buttons = NSStackView(views: [test, cancel, save])
         buttons.orientation = .horizontal
         buttons.alignment = .centerY
         buttons.spacing = 8
@@ -123,12 +143,15 @@ final class CustomCommandsWindowController: NSWindowController, NSTableViewDataS
             scroll.bottomAnchor.constraint(equalTo: add.topAnchor, constant: -8),
             add.leadingAnchor.constraint(equalTo: sidebar.leadingAnchor, constant: 8),
             add.bottomAnchor.constraint(equalTo: sidebar.bottomAnchor, constant: -8),
-            remove.leadingAnchor.constraint(equalTo: add.trailingAnchor, constant: 4),
+            edit.leadingAnchor.constraint(equalTo: add.trailingAnchor, constant: 6),
+            edit.centerYAnchor.constraint(equalTo: add.centerYAnchor),
+            remove.leadingAnchor.constraint(equalTo: edit.trailingAnchor, constant: 6),
             remove.centerYAnchor.constraint(equalTo: add.centerYAnchor),
             form.leadingAnchor.constraint(equalTo: editor.leadingAnchor, constant: 24),
             form.trailingAnchor.constraint(equalTo: editor.trailingAnchor, constant: -24),
             form.topAnchor.constraint(equalTo: editor.topAnchor, constant: 24)
         ])
+        hideEditor()
     }
 
     private func configure(_ field: NSTextField, placeholder: String) {
@@ -153,6 +176,7 @@ final class CustomCommandsWindowController: NSWindowController, NSTableViewDataS
         table.reloadData()
         if !commands.isEmpty { table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false) }
         else { clearEditor() }
+        hideEditor()
     }
 
     private func loadSelection() {
@@ -186,15 +210,22 @@ final class CustomCommandsWindowController: NSWindowController, NSTableViewDataS
     }
 
     @objc private func addCommand() {
-        let command = CatalystCommand(
-            id: UUID().uuidString, title: "New Command", category: "Custom",
-            symbolName: "terminal.fill", aliases: [],
-            action: .runProcess(ProcessConfiguration(executable: "/usr/bin/env", arguments: [], workingDirectory: nil))
-        )
-        commands.append(command)
-        CustomCommandStore.shared.commands = commands
-        table.reloadData()
-        table.selectRowIndexes(IndexSet(integer: commands.count - 1), byExtendingSelection: false)
+        editingIndex = nil
+        clearEditor()
+        categoryField.stringValue = "Custom"
+        symbolField.stringValue = "terminal.fill"
+        targetField.stringValue = "/usr/bin/env"
+        actionPopup.selectItem(at: 0)
+        showEditor()
+        window?.makeFirstResponder(titleField)
+    }
+
+    @objc private func editCommand() {
+        guard let selectedIndex, commands.indices.contains(selectedIndex) else { return }
+        editingIndex = selectedIndex
+        loadSelection()
+        showEditor()
+        window?.makeFirstResponder(titleField)
     }
 
     @objc private func removeCommand() {
@@ -205,28 +236,62 @@ final class CustomCommandsWindowController: NSWindowController, NSTableViewDataS
     }
 
     @objc private func saveCommand() {
-        guard let selectedIndex, commands.indices.contains(selectedIndex), !titleField.stringValue.isEmpty else { return }
-        commands[selectedIndex].title = titleField.stringValue
-        commands[selectedIndex].category = categoryField.stringValue.isEmpty ? "Custom" : categoryField.stringValue
-        commands[selectedIndex].symbolName = symbolField.stringValue.isEmpty ? "terminal.fill" : symbolField.stringValue
-        commands[selectedIndex].aliases = aliasesField.stringValue.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-        if actionPopup.indexOfSelectedItem == 1 {
-            commands[selectedIndex].action = .openURL(targetField.stringValue)
+        guard !titleField.stringValue.isEmpty else { return }
+        let id = editingIndex.flatMap { commands.indices.contains($0) ? commands[$0].id : nil }
+            ?? UUID().uuidString
+        let command = commandFromEditor(id: id)
+        if let editingIndex, commands.indices.contains(editingIndex) {
+            commands[editingIndex] = command
         } else {
-            commands[selectedIndex].action = .runProcess(ProcessConfiguration(
+            commands.append(command)
+        }
+        CustomCommandStore.shared.commands = commands
+        table.reloadData()
+        if let index = commands.firstIndex(where: { $0.id == id }) {
+            table.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+        }
+        hideEditor()
+    }
+
+    @objc private func testCommand() {
+        guard !titleField.stringValue.isEmpty else { return }
+        let command = commandFromEditor(id: editingIndex.flatMap {
+            commands.indices.contains($0) ? commands[$0].id : nil
+        } ?? UUID().uuidString)
+        _ = CommandExecutor().execute(.defined(command), previousApplication: nil)
+    }
+
+    @objc private func cancelEditing() { hideEditor() }
+
+    private func commandFromEditor(id: String) -> CatalystCommand {
+        let action: CatalystCommandAction = actionPopup.indexOfSelectedItem == 1
+            ? .openURL(targetField.stringValue)
+            : .runProcess(ProcessConfiguration(
                 executable: targetField.stringValue,
                 arguments: argumentsField.stringValue.split(separator: " ").map(String.init),
                 workingDirectory: directoryField.stringValue.isEmpty ? nil : directoryField.stringValue,
                 runsThroughShell: shellSwitch.state == .on
             ))
-        }
-        CustomCommandStore.shared.commands = commands
-        table.reloadData()
+        return CatalystCommand(
+            id: id,
+            title: titleField.stringValue,
+            category: categoryField.stringValue.isEmpty ? "Custom" : categoryField.stringValue,
+            symbolName: symbolField.stringValue.isEmpty ? "terminal.fill" : symbolField.stringValue,
+            aliases: aliasesField.stringValue.split(separator: ",").map {
+                $0.trimmingCharacters(in: .whitespaces)
+            },
+            action: action
+        )
     }
 
-    @objc private func testCommand() {
-        saveCommand()
-        guard let selectedIndex, commands.indices.contains(selectedIndex) else { return }
-        _ = CommandExecutor().execute(.defined(commands[selectedIndex]), previousApplication: nil)
+    private func showEditor() {
+        editor.isHidden = false
+        sidebarWidth.isActive = true
+    }
+
+    private func hideEditor() {
+        editingIndex = nil
+        sidebarWidth?.isActive = false
+        editor.isHidden = true
     }
 }

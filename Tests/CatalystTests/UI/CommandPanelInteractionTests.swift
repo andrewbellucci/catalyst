@@ -62,6 +62,18 @@ final class CommandPanelInteractionTests: XCTestCase {
         XCTAssertTrue(dismissed)
     }
 
+    func testDismissHidesOpenActionPalette() {
+        _ = NSApplication.shared
+        let controller = CommandPanelController()
+        controller.setSearchQueryForTesting("Finder")
+        controller.showActionsForTesting()
+        XCTAssertFalse(controller.actionPaletteIsHiddenForTesting)
+
+        controller.dismiss()
+
+        XCTAssertTrue(controller.actionPaletteIsHiddenForTesting)
+    }
+
     func testCommandKActionsForSelectedApplication() {
         _ = NSApplication.shared
         let controller = CommandPanelController()
@@ -118,6 +130,19 @@ final class CommandPanelInteractionTests: XCTestCase {
 
         let titles = controller.actionMenuTitlesForTesting(for: item)
         XCTAssertEqual(titles, ["Copy Password"])
+    }
+
+    func testCustomCommandsOfferEditActionButBuiltInsDoNot() {
+        _ = NSApplication.shared
+        let controller = CommandPanelController()
+        let custom = CatalystCommand(
+            id: "custom", title: "Custom", category: "Custom", symbolName: "terminal",
+            aliases: [], action: .openURL("https://example.com")
+        )
+
+        XCTAssertTrue(controller.actionMenuTitlesForTesting(for: custom.item).contains("Edit Command"))
+        XCTAssertFalse(controller.actionMenuTitlesForTesting(for: CommandRegistry.builtIns[0].item)
+            .contains("Edit Command"))
     }
 
     func testRunningApplicationOffersRestartAction() {

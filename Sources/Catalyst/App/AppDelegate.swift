@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         toastController = NotchToastController()
         panelController.onDismiss = { [weak self] in self?.hidePanel() }
         panelController.onShowSettings = { [weak self] in self?.showSettings() }
+        panelController.onEditCommand = { [weak self] id in self?.editCommand(id: id) }
         panelController.onShowToast = { [weak self] toast, screen in
             self?.toastController.show(toast, on: screen)
         }
@@ -181,5 +182,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showSettings() {
         hidePanel()
         settingsWindowController.show()
+    }
+
+    private func editCommand(id: String) {
+        hidePanel()
+        settingsWindowController.showCustomCommand(id: id)
     }
 }

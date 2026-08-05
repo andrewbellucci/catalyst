@@ -37,6 +37,10 @@ final class CatalystSettingsView: NSView {
         toastDurationPopup.selectItem(withTitle: CatalystPreferences.shared.toastDuration.title)
     }
 
+    func showCustomCommand(id: String) {
+        customCommandsController.show(editingCommandID: id)
+    }
+
     private func build() {
         openAtLoginSwitch.target = self
         openAtLoginSwitch.action = #selector(openAtLoginChanged)

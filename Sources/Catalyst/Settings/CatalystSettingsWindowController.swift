@@ -29,6 +29,10 @@ final class CatalystSettingsWindowController: NSWindowController, NSWindowDelega
         window?.makeKeyAndOrderFront(nil)
     }
 
+    func showCustomCommand(id: String) {
+        settingsView.showCustomCommand(id: id)
+    }
+
     private func buildContent() {
         guard let contentView = window?.contentView else { return }
         settingsView.translatesAutoresizingMaskIntoConstraints = false

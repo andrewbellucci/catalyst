@@ -6,6 +6,7 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
 
     var onDismiss: (() -> Void)?
     var onShowSettings: (() -> Void)?
+    var onEditCommand: ((String) -> Void)?
     var onShowToast: ((NotchToast, NSScreen?) -> Void)?
     var previousApplication: (() -> NSRunningApplication?)?
 
@@ -401,6 +402,8 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
 
     private func showResults() {
         state = .results
+        stopTOTPPreview()
+        actionsPalette.isHidden = true
         cameraView.stop()
         setMainSearchVisible(true)
         scrollView.allowsHoverScroller = true
@@ -604,6 +607,13 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
             ))
         }
         switch item.kind {
+        case .defined(let command) where command.isEditable:
+            actions.append(PaletteAction(
+                title: "Edit Command",
+                symbolName: "pencil",
+                shortcut: "",
+                selector: #selector(editSelectedCommand)
+            ))
         case .application(let url):
             let aliases = launcherSearch.applicationAliases(for: url)
             actions.append(PaletteAction(
@@ -696,6 +706,13 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
         )
         updateResults()
         window?.makeFirstResponder(searchField)
+    }
+
+    @objc private func editSelectedCommand() {
+        guard let selectedItem, case .defined(let command) = selectedItem.kind,
+              command.isEditable else { return }
+        onDismiss?()
+        onEditCommand?(command.id)
     }
 
     private func keyboardLockDurationActions() -> [PaletteAction] {
@@ -996,6 +1013,8 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
     var actionPaletteSearchIsFocusedForTesting: Bool {
         actionsPalette.isSearchFocused
     }
+
+    var actionPaletteIsHiddenForTesting: Bool { actionsPalette.isHidden }
 
     var actionPaletteSearchFieldForTesting: NSTextField {
         actionsPalette.searchFieldForTesting
