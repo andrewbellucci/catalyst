@@ -26,6 +26,13 @@ enum CommandRegistry {
         CommandDescriptor(title: "Restart Device", subtitle: "System Actions", symbolName: "arrow.clockwise.circle.fill", kind: .restartDevice),
         CommandDescriptor(title: "Lock Device", subtitle: "System Actions", symbolName: "lock.fill", kind: .lockDevice),
         CommandDescriptor(title: "Lock Keyboard", subtitle: "Cleaning", symbolName: "keyboard.badge.ellipsis", kind: .lockKeyboard),
+        CommandDescriptor(
+            title: "Empty Trash",
+            subtitle: "Cleaning",
+            symbolName: "trash.fill",
+            kind: .emptyTrash,
+            aliases: ["clear trash", "empty bin", "empty recycling bin"]
+        ),
         CommandDescriptor(title: "Shut Down Device", subtitle: "System Actions", symbolName: "power.circle.fill", kind: .shutDownDevice),
         CommandDescriptor(title: "Toggle System Appearance", subtitle: "System Actions", symbolName: "circle.lefthalf.filled", kind: .toggleSystemAppearance),
         CommandDescriptor(title: "Restart Catalyst", subtitle: "Catalyst", symbolName: "arrow.clockwise", kind: .restartCatalyst),

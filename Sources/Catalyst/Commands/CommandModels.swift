@@ -8,6 +8,7 @@ enum CommandKind {
     case restartDevice
     case lockDevice
     case lockKeyboard
+    case emptyTrash
     case shutDownDevice
     case toggleSystemAppearance
     case restartCatalyst
@@ -69,7 +70,7 @@ struct CommandItem {
         case .calculation: "Copy Result"
         case .dictionary: "Show Definition"
         case .camera: "Open Camera"
-        case .quitFocused, .quitAll, .restartDevice, .lockDevice, .shutDownDevice,
+        case .quitFocused, .quitAll, .restartDevice, .lockDevice, .emptyTrash, .shutDownDevice,
              .toggleSystemAppearance:
             "Run Command"
         case .lockKeyboard: "Choose Duration"
@@ -90,6 +91,7 @@ struct CommandItem {
         case .restartDevice: "command:restart-device"
         case .lockDevice: "command:lock-device"
         case .lockKeyboard: "command:lock-keyboard"
+        case .emptyTrash: "command:empty-trash"
         case .shutDownDevice: "command:shutdown-device"
         case .toggleSystemAppearance: "command:toggle-system-appearance"
         case .restartCatalyst: "command:restart-catalyst"

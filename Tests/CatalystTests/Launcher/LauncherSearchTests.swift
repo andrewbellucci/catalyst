@@ -21,6 +21,14 @@ final class LauncherSearchTests: XCTestCase {
         XCTAssertEqual(Set(identifiers).count, identifiers.count)
     }
 
+    func testEmptyTrashCommandIsSearchable() {
+        let search = LauncherSearch(settingsPanes: [])
+
+        let result = search.results(for: "empty trash").first { $0.title == "Empty Trash" }
+
+        XCTAssertNotNil(result)
+    }
+
     func testAcceptedQuitRequestImmediatelyClearsRunningStatus() throws {
         let search = LauncherSearch(settingsPanes: [])
         search.prepare()

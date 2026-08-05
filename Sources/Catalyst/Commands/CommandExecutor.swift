@@ -43,6 +43,8 @@ final class CommandExecutor {
             return systemActions.lockDevice() ? .dismiss : .none
         case .lockKeyboard:
             return .showKeyboardLockDurations
+        case .emptyTrash:
+            return systemActions.confirmEmptyTrash() ? .dismiss : .none
         case .shutDownDevice:
             return systemActions.confirmShutDown() ? .dismiss : .none
         case .toggleSystemAppearance:

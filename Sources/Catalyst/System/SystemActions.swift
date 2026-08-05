@@ -35,6 +35,20 @@ final class SystemActions {
         )
     }
 
+    func confirmEmptyTrash() -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "Empty the Trash?"
+        alert.informativeText = "This permanently deletes every item in the Trash."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Empty")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return false }
+
+        let succeeded = runSystemEventScript("tell application \"Finder\" to empty trash")
+        if !succeeded { showAutomationPermissionAlert() }
+        return succeeded
+    }
+
     func toggleAppearance() -> Bool {
         let succeeded = runSystemEventScript(
             "tell application \"System Events\" to tell appearance preferences "

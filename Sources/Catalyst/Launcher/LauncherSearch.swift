@@ -78,7 +78,7 @@ final class LauncherSearch {
         var commandResults = dynamicCommands(for: query)
 
         commandResults.append(contentsOf: CommandRegistry.builtIns
-            .filter { query.isEmpty || $0.title.localizedCaseInsensitiveContains(query) }
+            .filter { query.isEmpty || ranker.matches($0.item, query: query) }
             .map(\.item))
 
         if !query.isEmpty {
