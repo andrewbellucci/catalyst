@@ -549,21 +549,33 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
             return keyboardLockDurationActions()
         }
         if case .passwordItem = item.kind {
-            var actions = [
-                PaletteAction(
+            guard case .passwordItem(let passwordItem) = item.kind else { return [] }
+            var actions: [PaletteAction] = []
+            if passwordItem.hasUsername {
+                actions.append(PaletteAction(
                     title: "Copy Username",
                     symbolName: "person.crop.circle",
                     shortcut: "",
                     selector: #selector(copyPasswordManagerUsername)
-                ),
-                PaletteAction(
+                ))
+            }
+            if !passwordItem.email.isEmpty {
+                actions.append(PaletteAction(
+                    title: "Copy Email",
+                    symbolName: "envelope.fill",
+                    shortcut: "",
+                    selector: #selector(copyPasswordManagerEmail)
+                ))
+            }
+            if passwordItem.hasPassword {
+                actions.append(PaletteAction(
                     title: "Copy Password",
                     symbolName: "key.fill",
                     shortcut: "",
                     selector: #selector(copyPasswordManagerPassword)
-                )
-            ]
-            if case .passwordItem(let passwordItem) = item.kind, passwordItem.hasTOTP {
+                ))
+            }
+            if passwordItem.hasTOTP {
                 actions.append(PaletteAction(
                     title: "Copy TOTP",
                     symbolName: "number.circle",
@@ -896,6 +908,11 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
         copyPasswordManagerField(.username)
     }
 
+    @objc private func copyPasswordManagerEmail() {
+        guard let selectedItem, case .passwordItem(let item) = selectedItem.kind else { return }
+        finishPasswordManagerCopy(item.email, fieldTitle: "Email")
+    }
+
     @objc private func copyPasswordManagerPassword() {
         copyPasswordManagerField(.password)
     }
@@ -927,11 +944,15 @@ final class CommandPanelController: NSWindowController, NSWindowDelegate, NSText
     }
 
     private func finishPasswordManagerCopy(_ value: String, field: PasswordManagerField) {
+        finishPasswordManagerCopy(value, fieldTitle: field.title)
+    }
+
+    private func finishPasswordManagerCopy(_ value: String, fieldTitle: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(value, forType: .string)
         let screen = window?.screen
         onShowToast?(
-            NotchToast(message: "\(field.title) copied", indicatorColor: .systemGreen),
+            NotchToast(message: "\(fieldTitle) copied", indicatorColor: .systemGreen),
             screen
         )
         hideActionsPalette()

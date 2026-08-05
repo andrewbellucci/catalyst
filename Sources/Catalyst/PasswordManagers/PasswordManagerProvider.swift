@@ -21,7 +21,31 @@ struct PasswordManagerItem: Hashable, Sendable {
     let itemID: String
     let title: String
     let email: String
+    let hasUsername: Bool
+    let hasPassword: Bool
     let hasTOTP: Bool
+
+    init(
+        providerID: String,
+        providerName: String,
+        vaultID: String,
+        itemID: String,
+        title: String,
+        email: String,
+        hasUsername: Bool = true,
+        hasPassword: Bool = true,
+        hasTOTP: Bool
+    ) {
+        self.providerID = providerID
+        self.providerName = providerName
+        self.vaultID = vaultID
+        self.itemID = itemID
+        self.title = title
+        self.email = email
+        self.hasUsername = hasUsername
+        self.hasPassword = hasPassword
+        self.hasTOTP = hasTOTP
+    }
 }
 
 protocol PasswordManagerProvider: Sendable {

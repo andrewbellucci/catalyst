@@ -289,14 +289,7 @@ final class ActionPaletteView: NSVisualEffectView, NSTextFieldDelegate {
         row.wantsLayer = true
         row.layer?.cornerRadius = 10
 
-        let button = NSButton(
-            image: NSImage(systemSymbolName: action.symbolName, accessibilityDescription: nil)!,
-            target: target,
-            action: action.selector
-        )
-        button.title = action.title
-        button.imagePosition = .imageLeading
-        button.imageHugsTitle = true
+        let button = NSButton(title: action.title, target: target, action: action.selector)
         button.font = .systemFont(ofSize: 15, weight: .regular)
         button.alignment = .left
         button.isBordered = false
@@ -338,13 +331,19 @@ final class ActionPaletteView: NSVisualEffectView, NSTextFieldDelegate {
             button.centerYAnchor.constraint(equalTo: row.centerYAnchor),
             detail.trailingAnchor.constraint(equalTo: countdown.leadingAnchor, constant: -8),
             detail.centerYAnchor.constraint(equalTo: row.centerYAnchor),
-            countdown.trailingAnchor.constraint(equalTo: shortcut.leadingAnchor, constant: -8),
+            countdown.trailingAnchor.constraint(
+                equalTo: shortcut.leadingAnchor,
+                constant: action.shortcut.isEmpty ? 0 : -8
+            ),
             countdown.centerYAnchor.constraint(equalTo: row.centerYAnchor),
             countdown.widthAnchor.constraint(equalToConstant: action.countdownSeconds == nil ? 0 : 24),
             countdown.heightAnchor.constraint(equalToConstant: 24),
             shortcut.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -10),
             shortcut.centerYAnchor.constraint(equalTo: row.centerYAnchor)
         ])
+        if action.shortcut.isEmpty {
+            shortcut.widthAnchor.constraint(equalToConstant: 0).isActive = true
+        }
         return row
     }
 }

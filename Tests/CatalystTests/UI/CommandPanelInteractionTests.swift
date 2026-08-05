@@ -103,6 +103,23 @@ final class CommandPanelInteractionTests: XCTestCase {
         XCTAssertFalse(controller.actionMenuTitlesForTesting(for: item(hasTOTP: false)).contains("Copy TOTP"))
     }
 
+    func testCredentialActionsOnlyAppearForAvailableFields() {
+        _ = NSApplication.shared
+        let controller = CommandPanelController()
+        let item = CommandItem(
+            title: "Login",
+            subtitle: "",
+            icon: nil,
+            kind: .passwordItem(PasswordManagerItem(
+                providerID: "test", providerName: "Test", vaultID: "vault", itemID: "item",
+                title: "Login", email: "", hasUsername: false, hasPassword: true, hasTOTP: false
+            ))
+        )
+
+        let titles = controller.actionMenuTitlesForTesting(for: item)
+        XCTAssertEqual(titles, ["Copy Password"])
+    }
+
     func testRunningApplicationOffersRestartAction() {
         _ = NSApplication.shared
         let controller = CommandPanelController()

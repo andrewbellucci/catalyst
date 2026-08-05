@@ -44,6 +44,8 @@ struct ProtonPassProvider: PasswordManagerProvider {
                     itemID: rawItem.id,
                     title: rawItem.content.title,
                     email: rawItem.content.content.login?.email ?? "",
+                    hasUsername: rawItem.content.content.login?.username.isEmpty == false,
+                    hasPassword: rawItem.content.content.login?.password.isEmpty == false,
                     hasTOTP: rawItem.content.content.login?.totpURI.isEmpty == false
                 )
                 results.append(item)
@@ -93,7 +95,14 @@ struct ProtonPassProvider: PasswordManagerProvider {
 
     func prepareValues(in item: PasswordManagerItem) async {
         await withTaskGroup(of: Void.self) { group in
-            for field in PasswordManagerField.allCases where field != .totp || item.hasTOTP {
+            let fields = PasswordManagerField.allCases.filter {
+                switch $0 {
+                case .username: item.hasUsername
+                case .password: item.hasPassword
+                case .totp: item.hasTOTP
+                }
+            }
+            for field in fields {
                 group.addTask { _ = try? await value(for: field, in: item) }
             }
         }

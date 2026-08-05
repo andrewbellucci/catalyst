@@ -24,6 +24,7 @@ final class NotchToastController {
     private static let toastFont = NSFont.systemFont(ofSize: 15, weight: .medium)
     private var window: NSPanel?
     private var dismissal: DispatchWorkItem?
+    private var expandedContentPosition = CGPoint.zero
 
     func show(_ toast: NotchToast, on screen: NSScreen? = nil) {
         dismissal?.cancel()
@@ -59,17 +60,19 @@ final class NotchToastController {
         panel.alphaValue = 1
         animationHost.layoutSubtreeIfNeeded()
         content.layoutSubtreeIfNeeded()
+        expandedContentPosition = content.layer?.position ?? CGPoint(x: content.bounds.midX, y: content.bounds.midY)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         content.layer?.transform = collapsedTransform(for: content)
         content.layer?.opacity = 0
+        content.layer?.position = compensatedPosition(for: content, scaleX: 44 / finalSize.width, scaleY: 6 / finalSize.height)
         CATransaction.commit()
         panel.orderFrontRegardless()
         window = panel
 
         DispatchQueue.main.async { [weak self, weak panel, weak content] in
             guard let self, let panel, let content, self.window === panel else { return }
-            self.animate(content, fromCollapsed: true, duration: 0.32)
+            self.animate(content, fromCollapsed: true, duration: 0.42)
         }
 
         let dismissal = DispatchWorkItem { [weak self, weak panel] in
@@ -181,16 +184,62 @@ final class NotchToastController {
         let startOpacity: Float = fromCollapsed ? 0 : 1
         let endOpacity: Float = fromCollapsed ? 1 : 0
 
-        let transformAnimation = CABasicAnimation(keyPath: "transform")
-        transformAnimation.fromValue = NSValue(caTransform3D: startTransform)
-        transformAnimation.toValue = NSValue(caTransform3D: endTransform)
+        let transformAnimation: CAAnimation
+        if fromCollapsed {
+            let spring = CAKeyframeAnimation(keyPath: "transform")
+            spring.values = [
+                NSValue(caTransform3D: startTransform),
+                NSValue(caTransform3D: CATransform3DMakeScale(1.035, 1.035, 1)),
+                NSValue(caTransform3D: CATransform3DMakeScale(0.99, 0.99, 1)),
+                NSValue(caTransform3D: endTransform)
+            ]
+            spring.keyTimes = [0, 0.68, 0.86, 1]
+            spring.timingFunctions = [
+                CAMediaTimingFunction(name: .easeOut),
+                CAMediaTimingFunction(name: .easeInEaseOut),
+                CAMediaTimingFunction(name: .easeOut)
+            ]
+            transformAnimation = spring
+        } else {
+            let shrink = CABasicAnimation(keyPath: "transform")
+            shrink.fromValue = NSValue(caTransform3D: startTransform)
+            shrink.toValue = NSValue(caTransform3D: endTransform)
+            transformAnimation = shrink
+        }
 
         let opacityAnimation = CABasicAnimation(keyPath: "opacity")
         opacityAnimation.fromValue = startOpacity
         opacityAnimation.toValue = endOpacity
 
+        let positionAnimation: CAAnimation
+        if fromCollapsed {
+            let springPosition = CAKeyframeAnimation(keyPath: "position")
+            springPosition.values = [
+                NSValue(point: compensatedPosition(for: view, scaleX: 44 / view.bounds.width, scaleY: 6 / view.bounds.height)),
+                NSValue(point: compensatedPosition(for: view, scaleX: 1.035, scaleY: 1.035)),
+                NSValue(point: compensatedPosition(for: view, scaleX: 0.99, scaleY: 0.99)),
+                NSValue(point: expandedContentPosition)
+            ]
+            springPosition.keyTimes = [0, 0.68, 0.86, 1]
+            springPosition.timingFunctions = [
+                CAMediaTimingFunction(name: .easeOut),
+                CAMediaTimingFunction(name: .easeInEaseOut),
+                CAMediaTimingFunction(name: .easeOut)
+            ]
+            positionAnimation = springPosition
+        } else {
+            let shrinkPosition = CABasicAnimation(keyPath: "position")
+            shrinkPosition.fromValue = NSValue(point: expandedContentPosition)
+            shrinkPosition.toValue = NSValue(point: compensatedPosition(
+                for: view,
+                scaleX: 44 / view.bounds.width,
+                scaleY: 6 / view.bounds.height
+            ))
+            positionAnimation = shrinkPosition
+        }
+
         let animation = CAAnimationGroup()
-        animation.animations = [transformAnimation, opacityAnimation]
+        animation.animations = [transformAnimation, opacityAnimation, positionAnimation]
         animation.duration = duration
         animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
 
@@ -199,6 +248,9 @@ final class NotchToastController {
         CATransaction.setCompletionBlock(completion)
         layer.transform = endTransform
         layer.opacity = endOpacity
+        layer.position = fromCollapsed
+            ? expandedContentPosition
+            : compensatedPosition(for: view, scaleX: 44 / view.bounds.width, scaleY: 6 / view.bounds.height)
         layer.add(animation, forKey: "catalystToastTransition")
         CATransaction.commit()
     }
@@ -208,6 +260,17 @@ final class NotchToastController {
             44 / max(view.bounds.width, 1),
             6 / max(view.bounds.height, 1),
             1
+        )
+    }
+
+    private func compensatedPosition(for view: NSView, scaleX: CGFloat, scaleY: CGFloat) -> CGPoint {
+        guard let layer = view.layer else { return expandedContentPosition }
+        let topY: CGFloat = layer.isGeometryFlipped ? 0 : 1
+        return CGPoint(
+            x: expandedContentPosition.x
+                + (0.5 - layer.anchorPoint.x) * view.bounds.width * (1 - scaleX),
+            y: expandedContentPosition.y
+                + (topY - layer.anchorPoint.y) * view.bounds.height * (1 - scaleY)
         )
     }
 
